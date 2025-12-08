@@ -1,0 +1,6 @@
+nohup: ignoring input
+
+> skillswap-auth-backend@1.0.0 start
+> node server.js
+
+SkillSwap backend running on http://localhost:4000
