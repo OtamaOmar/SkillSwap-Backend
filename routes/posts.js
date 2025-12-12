@@ -9,17 +9,17 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, 
-              pr.username, pr.full_name, pr.avatar_url,
+              u.username, u.full_name,
               COUNT(DISTINCT l.id) as likes_count,
               COUNT(DISTINCT c.id) as comments_count,
               COUNT(DISTINCT s.id) as shares_count,
               (SELECT COUNT(*) > 0 FROM likes WHERE post_id = p.id AND user_id = $1) as user_liked
        FROM posts p
-       LEFT JOIN profiles pr ON p.user_id = pr.id
+       LEFT JOIN users u ON p.user_id = u.id
        LEFT JOIN likes l ON p.id = l.post_id
        LEFT JOIN comments c ON p.id = c.post_id
        LEFT JOIN shares s ON p.id = s.post_id
-       GROUP BY p.id, pr.id
+       GROUP BY p.id, u.id
        ORDER BY p.created_at DESC`,
       [req.user.id]
     );
@@ -35,17 +35,17 @@ router.get('/user/:userId', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, 
-              pr.username, pr.full_name, pr.avatar_url,
+              u.username, u.full_name,
               COUNT(DISTINCT l.id) as likes_count,
               COUNT(DISTINCT c.id) as comments_count,
               COUNT(DISTINCT s.id) as shares_count
        FROM posts p
-       LEFT JOIN profiles pr ON p.user_id = pr.id
+       LEFT JOIN users u ON p.user_id = u.id
        LEFT JOIN likes l ON p.id = l.post_id
        LEFT JOIN comments c ON p.id = c.post_id
        LEFT JOIN shares s ON p.id = s.post_id
        WHERE p.user_id = $1
-       GROUP BY p.id, pr.id
+       GROUP BY p.id, u.id
        ORDER BY p.created_at DESC`,
       [req.params.userId]
     );
@@ -83,9 +83,9 @@ router.post('/', authenticateToken, async (req, res) => {
 router.get('/:id/comments', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT c.*, pr.username, pr.full_name, pr.avatar_url
+      `SELECT c.*, u.username, u.full_name
        FROM comments c
-       LEFT JOIN profiles pr ON c.user_id = pr.id
+       LEFT JOIN users u ON c.user_id = u.id
        WHERE c.post_id = $1
        ORDER BY c.created_at DESC`,
       [req.params.id]
