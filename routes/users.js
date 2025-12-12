@@ -7,25 +7,15 @@ const router = express.Router();
 // Get current user profile
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    // First check if profile exists
+    // Get user from users table
     let result = await pool.query(
-      `SELECT id, username, email, full_name, avatar_url, role, created_at
-       FROM profiles WHERE id = $1`,
+      `SELECT id, username, email, full_name, profile_picture, cover_image, created_at
+       FROM users WHERE id = $1`,
       [req.user.id]
     );
 
-    // If profile doesn't exist, create it from Supabase auth data
     if (result.rows.length === 0) {
-      const username = req.user.username || req.user.email?.split('@')[0] || 'user';
-      const full_name = req.user.full_name || req.user.name || '';
-      
-      result = await pool.query(
-        `INSERT INTO profiles (id, username, email, full_name, role)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (id) DO UPDATE SET email = $3
-         RETURNING id, username, email, full_name, avatar_url, role, created_at`,
-        [req.user.id, username, req.user.email, full_name, 'user']
-      );
+      return res.status(404).json({ error: 'User not found' });
     }
 
     const user = result.rows[0];
@@ -53,8 +43,8 @@ router.get('/me', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, username, full_name, avatar_url, email, role, created_at
-       FROM profiles WHERE id = $1`,
+      `SELECT id, username, full_name, email, profile_picture, cover_image, created_at
+       FROM users WHERE id = $1`,
       [req.params.id]
     );
 
@@ -93,7 +83,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, username, full_name, avatar_url, email, role, created_at FROM profiles ORDER BY created_at DESC'
+      'SELECT id, username, full_name, email, created_at FROM users ORDER BY created_at DESC'
     );
     res.json(result.rows);
   } catch (error) {
@@ -112,11 +102,11 @@ router.put('/me', authenticateToken, async (req, res) => {
     const { full_name, bio, location, country } = req.body;
 
     const result = await pool.query(
-      `UPDATE profiles 
+      `UPDATE users 
        SET full_name = COALESCE($1, full_name),
            updated_at = NOW()
        WHERE id = $2
-       RETURNING id, username, email, full_name, avatar_url, role, created_at`,
+       RETURNING id, username, email, full_name, created_at`,
       [full_name, req.user.id]
     );
 
@@ -136,17 +126,17 @@ router.get('/:id/posts', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, 
-              pr.username, pr.full_name, pr.avatar_url,
+              u.username, u.full_name,
               COUNT(DISTINCT l.id) as likes_count,
               COUNT(DISTINCT c.id) as comments_count,
               COUNT(DISTINCT s.id) as shares_count
        FROM posts p
-       LEFT JOIN profiles pr ON p.user_id = pr.id
+       LEFT JOIN users u ON p.user_id = u.id
        LEFT JOIN likes l ON p.id = l.post_id
        LEFT JOIN comments c ON p.id = c.post_id
        LEFT JOIN shares s ON p.id = s.post_id
        WHERE p.user_id = $1
-       GROUP BY p.id, pr.id
+       GROUP BY p.id, u.id
        ORDER BY p.created_at DESC`,
       [req.params.id]
     );
