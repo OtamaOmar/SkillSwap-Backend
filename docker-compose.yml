@@ -1,0 +1,44 @@
+version: "3.9"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/otamaomar/skillswap-backend:latest
+    container_name: skillswap-backend
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=postgres://skillswap:skillswap@db:5432/skillswap
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=mora
+      - DB_PASSWORD=Omar.2005
+      - DB_NAME=skillswap_db
+    restart: unless-stopped
+    # If you need to wait for a DB, uncomment healthcheck and depends_on
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:3000/health" ]
+    #   interval: 10s
+    #   timeout: 3s
+    #   retries: 5
+
+  db:
+    image: postgres:15
+    container_name: skillswap-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=mora
+      - POSTGRES_PASSWORD=Omar.2005
+      - POSTGRES_DB=skillswap_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
