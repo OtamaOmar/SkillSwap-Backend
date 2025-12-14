@@ -5,7 +5,9 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "node migrations.js",
+    "migrate:and:start": "node migrations.js && node server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.35.0",

@@ -13,19 +13,23 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
-      - DATABASE_URL=postgres://skillswap:skillswap@db:5432/skillswap
+      - FRONTEND_URL=http://localhost:8000
+      - DATABASE_URL=postgres://mora:Omar.2005@db:5432/skillswap_db
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=mora
       - DB_PASSWORD=Omar.2005
       - DB_NAME=skillswap_db
     restart: unless-stopped
-    # If you need to wait for a DB, uncomment healthcheck and depends_on
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:3000/health" ]
-    #   interval: 10s
-    #   timeout: 3s
-    #   retries: 5
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'require(\"pg\").Client({connectionString: process.env.DATABASE_URL}).connect().then(()=>process.exit(0)).catch(()=>process.exit(1))'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    entrypoint: sh -c "npm run migrate && npm start"
 
   db:
     image: postgres:15
@@ -39,6 +43,11 @@ services:
       - POSTGRES_DB=skillswap_db
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mora -d skillswap_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

@@ -43,14 +43,14 @@ app.post("/api/auth/signup", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     
     // Check if user already exists
-    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT * FROM profiles WHERE email = $1', [email]);
     if (existingUser.rows.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
     }
     
     // Create user
     const result = await pool.query(
-      'INSERT INTO users (email, password, username, full_name) VALUES ($1, $2, $3, $4) RETURNING id, email, username, full_name',
+      'INSERT INTO profiles (email, password_hash, username, full_name) VALUES ($1, $2, $3, $4) RETURNING id, email, username, full_name',
       [email, hashedPassword, username, full_name]
     );
     
@@ -79,7 +79,7 @@ app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
     
     // Find user
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT * FROM profiles WHERE email = $1', [email]);
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -87,12 +87,12 @@ app.post("/api/auth/login", async (req, res) => {
     const user = result.rows[0];
     
     // Check if password exists
-    if (!user.password) {
+    if (!user.password_hash) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
     // Compare passwords
-    const validPassword = await bcrypt.compare(password, user.password);
+    const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }

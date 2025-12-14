@@ -2,6 +2,31 @@
 
 Node.js + Express backend with Supabase authentication and PostgreSQL database.
 
+## Docker & Railway quick start
+
+- **Local Docker (backend + PostgreSQL):**
+  1) Copy `.env` (see sample below) then run `docker compose up --build`. This starts the API on port 4000 and Postgres on 5432.
+  2) Healthcheck waits for Postgres before the API is marked healthy.
+- **Full-stack Docker:** from the `SkillSwap-Frontend` folder run `docker compose up --build` to bring up frontend (port 8000), backend (port 4000), and PostgreSQL (port 5432).
+- **Railway CI/CD:** pushes to `main` trigger `.github/workflows/cd.yml` which builds/pushes the image and deploys to Railway using the secrets listed below.
+
+### Backend env sample (.env)
+
+```
+NODE_ENV=production
+PORT=4000
+FRONTEND_URL=http://localhost:8000
+DATABASE_URL=postgres://mora:Omar.2005@localhost:5432/skillswap_db
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=mora
+DB_PASSWORD=Omar.2005
+DB_NAME=skillswap_db
+JWT_SECRET=change-me
+```
+
+> For Railway, set the same variables via project Variables or let the GitHub Action set them using secrets.
+
 ## Features
 
 - **Supabase Authentication**: User signup, login, logout, and session management
