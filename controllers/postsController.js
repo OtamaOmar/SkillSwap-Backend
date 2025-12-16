@@ -1,34 +1,27 @@
 // controllers/postsController.js
 import { pool } from "../db.js";
 
-// GET /api/posts/search?q=...
+// -----------------------------
+// SEARCH: GET /api/posts/search?q=...
+// -----------------------------
 export const searchPosts = async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
+    if (!q) return res.status(400).json({ error: "Query parameter 'q' is required" });
 
-    if (!q) {
-      return res.status(400).json({ error: "Query parameter 'q' is required" });
-    }
-
-    // optional pagination
     let limit = Number(req.query.limit ?? 20);
     let offset = Number(req.query.offset ?? 0);
-
     if (!Number.isFinite(limit) || limit <= 0) limit = 20;
     if (!Number.isFinite(offset) || offset < 0) offset = 0;
-
-    // cap to prevent huge responses
     limit = Math.min(limit, 50);
 
     const result = await pool.query(
-      `SELECT p.*, 
+      `SELECT p.*,
               pr.username, pr.full_name, pr.avatar_url,
               COUNT(DISTINCT l.id) as likes_count,
               COUNT(DISTINCT c.id) as comments_count,
               COUNT(DISTINCT s.id) as shares_count,
-              (SELECT COUNT(*) > 0 
-                 FROM likes 
-                WHERE post_id = p.id AND user_id = $1) as user_liked
+              (SELECT COUNT(*) > 0 FROM likes WHERE post_id = p.id AND user_id = $1) as user_liked
        FROM posts p
        LEFT JOIN profiles pr ON p.user_id = pr.id
        LEFT JOIN likes l ON p.id = l.post_id
@@ -41,29 +34,21 @@ export const searchPosts = async (req, res) => {
       [req.user.id, `%${q}%`, limit, offset]
     );
 
-    res.json({
-      q,
-      limit,
-      offset,
-      count: result.rows.length,
-      posts: result.rows,
-    });
+    res.json({ q, limit, offset, count: result.rows.length, posts: result.rows });
   } catch (error) {
     console.error("Search posts error:", error);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-
-
 // -----------------------------
 // FEED: GET /api/posts/feed
+// my posts + accepted friends posts
 // -----------------------------
 export const getFeed = async (req, res) => {
   try {
     let limit = Number(req.query.limit ?? 20);
     let offset = Number(req.query.offset ?? 0);
-
     if (!Number.isFinite(limit) || limit <= 0) limit = 20;
     if (!Number.isFinite(offset) || offset < 0) offset = 0;
     limit = Math.min(limit, 50);
@@ -71,11 +56,10 @@ export const getFeed = async (req, res) => {
     const result = await pool.query(
       `
       WITH friends AS (
-        SELECT
-          CASE
-            WHEN user_id = $1 THEN friend_id
-            ELSE user_id
-          END AS friend_id
+        SELECT CASE
+          WHEN user_id = $1 THEN friend_id
+          ELSE user_id
+        END AS friend_id
         FROM friendships
         WHERE (user_id = $1 OR friend_id = $1)
           AND status = 'accepted'
@@ -100,12 +84,7 @@ export const getFeed = async (req, res) => {
       [req.user.id, limit, offset]
     );
 
-    res.json({
-      limit,
-      offset,
-      count: result.rows.length,
-      posts: result.rows,
-    });
+    res.json({ limit, offset, count: result.rows.length, posts: result.rows });
   } catch (error) {
     console.error("Get feed error:", error);
     res.status(500).json({ error: "Server error" });
@@ -120,28 +99,23 @@ export const getPostById = async (req, res) => {
     const postId = req.params.id;
 
     const result = await pool.query(
-      `
-      SELECT p.*,
-             pr.username, pr.full_name, pr.avatar_url,
-             COUNT(DISTINCT l.id) as likes_count,
-             COUNT(DISTINCT c.id) as comments_count,
-             COUNT(DISTINCT s.id) as shares_count,
-             (SELECT COUNT(*) > 0 FROM likes WHERE post_id = p.id AND user_id = $1) as user_liked
-      FROM posts p
-      LEFT JOIN profiles pr ON p.user_id = pr.id
-      LEFT JOIN likes l ON p.id = l.post_id
-      LEFT JOIN comments c ON p.id = c.post_id
-      LEFT JOIN shares s ON p.id = s.post_id
-      WHERE p.id = $2
-      GROUP BY p.id, pr.id
-      `,
+      `SELECT p.*,
+              pr.username, pr.full_name, pr.avatar_url,
+              COUNT(DISTINCT l.id) as likes_count,
+              COUNT(DISTINCT c.id) as comments_count,
+              COUNT(DISTINCT s.id) as shares_count,
+              (SELECT COUNT(*) > 0 FROM likes WHERE post_id = p.id AND user_id = $1) as user_liked
+       FROM posts p
+       LEFT JOIN profiles pr ON p.user_id = pr.id
+       LEFT JOIN likes l ON p.id = l.post_id
+       LEFT JOIN comments c ON p.id = c.post_id
+       LEFT JOIN shares s ON p.id = s.post_id
+       WHERE p.id = $2
+       GROUP BY p.id, pr.id`,
       [req.user.id, postId]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Post not found" });
-    }
-
+    if (result.rows.length === 0) return res.status(404).json({ error: "Post not found" });
     res.json(result.rows[0]);
   } catch (error) {
     console.error("Get post by id error:", error);
@@ -150,8 +124,8 @@ export const getPostById = async (req, res) => {
 };
 
 // -----------------------------
-// UPDATE: PUT /api/posts/:id
-// owner only
+// UPDATE: PUT /api/posts/:id  (owner only)
+// body: { content?, image_url? }  (image_url can be null)
 // -----------------------------
 export const updatePost = async (req, res) => {
   try {
@@ -159,15 +133,17 @@ export const updatePost = async (req, res) => {
     const { content, image_url } = req.body;
 
     if (content === undefined && image_url === undefined) {
-      return res.status(400).json({ error: "Provide at least one field to update: content or image_url" });
+      return res.status(400).json({ error: "Provide content and/or image_url" });
     }
 
-    // Check ownership
     const existing = await pool.query("SELECT user_id FROM posts WHERE id = $1", [postId]);
     if (existing.rows.length === 0) return res.status(404).json({ error: "Post not found" });
-    if (existing.rows[0].user_id !== req.user.id) return res.status(403).json({ error: "Not allowed" });
 
-    // Dynamic update (allows setting image_url to null)
+    // safe compare
+    if (String(existing.rows[0].user_id) !== String(req.user.id)) {
+      return res.status(403).json({ error: "Not allowed" });
+    }
+
     const fields = [];
     const values = [];
     let idx = 1;
@@ -178,17 +154,17 @@ export const updatePost = async (req, res) => {
     }
     if (image_url !== undefined) {
       fields.push(`image_url = $${idx++}`);
-      values.push(image_url); // can be null
+      values.push(image_url); // allow null
     }
 
     values.push(postId);
 
-    const result = await pool.query(
+    const updated = await pool.query(
       `UPDATE posts SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
       values
     );
 
-    res.json(result.rows[0]);
+    res.json(updated.rows[0]);
   } catch (error) {
     console.error("Update post error:", error);
     res.status(500).json({ error: "Server error" });
@@ -196,8 +172,7 @@ export const updatePost = async (req, res) => {
 };
 
 // -----------------------------
-// DELETE: DELETE /api/posts/:id
-// owner only
+// DELETE: DELETE /api/posts/:id  (owner only)
 // -----------------------------
 export const deletePost = async (req, res) => {
   const client = await pool.connect();
@@ -206,11 +181,14 @@ export const deletePost = async (req, res) => {
 
     const existing = await client.query("SELECT user_id FROM posts WHERE id = $1", [postId]);
     if (existing.rows.length === 0) return res.status(404).json({ error: "Post not found" });
-    if (existing.rows[0].user_id !== req.user.id) return res.status(403).json({ error: "Not allowed" });
+
+    if (String(existing.rows[0].user_id) !== String(req.user.id)) {
+      return res.status(403).json({ error: "Not allowed" });
+    }
 
     await client.query("BEGIN");
 
-    // Delete dependencies first to avoid FK issues
+    // remove dependencies first
     await client.query("DELETE FROM likes WHERE post_id = $1", [postId]);
     await client.query("DELETE FROM comments WHERE post_id = $1", [postId]);
     await client.query("DELETE FROM shares WHERE post_id = $1", [postId]);
@@ -229,8 +207,7 @@ export const deletePost = async (req, res) => {
 };
 
 // -----------------------------
-// IMAGE UPLOAD HANDLER (multer route will call this)
-// POST /api/posts/:id/image
+// IMAGE: POST /api/posts/:id/image (multer will attach req.file)
 // owner only
 // -----------------------------
 export const setPostImageUrl = async (req, res) => {
@@ -238,13 +215,15 @@ export const setPostImageUrl = async (req, res) => {
     const postId = req.params.id;
 
     if (!req.file) {
-      return res.status(400).json({ error: "No image uploaded. Field name must be 'image'." });
+      return res.status(400).json({ error: "No image uploaded. Use form-data key: image" });
     }
 
-    // Check ownership
     const existing = await pool.query("SELECT user_id FROM posts WHERE id = $1", [postId]);
     if (existing.rows.length === 0) return res.status(404).json({ error: "Post not found" });
-    if (existing.rows[0].user_id !== req.user.id) return res.status(403).json({ error: "Not allowed" });
+
+    if (String(existing.rows[0].user_id) !== String(req.user.id)) {
+      return res.status(403).json({ error: "Not allowed" });
+    }
 
     const imageUrl = `/uploads/posts/${req.file.filename}`;
 
@@ -259,4 +238,3 @@ export const setPostImageUrl = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
