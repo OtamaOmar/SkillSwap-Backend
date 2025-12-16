@@ -9,13 +9,13 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT f.*, 
-              pr.username, pr.full_name, pr.avatar_url
+              u.username, u.full_name
        FROM friendships f
-       LEFT JOIN profiles pr ON 
+       LEFT JOIN users u ON 
          (CASE 
            WHEN f.user_id = $1 THEN f.friend_id 
            ELSE f.user_id 
-         END) = pr.id
+         END) = u.id
        WHERE f.user_id = $1 OR f.friend_id = $1
        ORDER BY f.created_at DESC`,
       [req.user.id]
