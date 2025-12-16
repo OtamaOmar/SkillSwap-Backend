@@ -9,6 +9,9 @@ import usersRoutes from "./routes/users.js";
 import postsRoutes from "./routes/posts.js";
 import skillsRoutes from "./routes/skills.js";
 import friendshipsRoutes from "./routes/friendships.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
 import chatRoutes from "./routes/chat.js";
 import commentsRoutes from "./routes/comments.js";
 import notificationsRoutes from "./routes/notifications.js";
@@ -17,12 +20,19 @@ dotenv.config();
 
 const app = express();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // CORS configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
 
+app.use("/api/friendships", friendshipsRoutes);
 app.use("/api/friends", friendshipsRoutes);
 app.use(express.json());
 app.use("/api/chat", chatRoutes);

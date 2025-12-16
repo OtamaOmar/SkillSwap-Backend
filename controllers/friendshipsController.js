@@ -1,12 +1,16 @@
 import { pool } from "../db.js";
 
+// IMPORTANT: Supabase profile ids are UUID strings. DO NOT Number() them.
+const asId = (v) => String(v || "").trim();
+
 const canonicalPair = (a, b) => {
-  const x = Number(a);
-  const y = Number(b);
-  return x < y ? [x, y] : [y, x];
+  const x = asId(a);
+  const y = asId(b);
+  return x < y ? [x, y] : [y, x]; // lexicographic compare works for UUID
 };
 
 const getOtherId = (row, myId) => (row.user_id === myId ? row.friend_id : row.user_id);
+
 
 // POST /api/friends/request
 // body: { toUserId }
