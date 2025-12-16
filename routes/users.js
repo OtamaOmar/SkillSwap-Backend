@@ -14,7 +14,7 @@ router.get('/me', authenticateToken, async (req, res) => {
       [req.user.id]
     );
 
-    // If profile doesn't exist, create it from Supabase auth data
+    // If profile doesn't exist, create it from JWT auth data
     if (result.rows.length === 0) {
       const username = req.user.username || req.user.email?.split('@')[0] || 'user';
       const full_name = req.user.full_name || req.user.name || '';

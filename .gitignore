@@ -1,0 +1,51 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env and secrets
+.env
+.env.*
+*.env.local
+
+# Logs
+logs/
+*.log
+log/*.log
+
+# OS/Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build and cache
+coverage/
+.tmp/
+.temp/
+.cache/
+
+# Runtime
+pids/
+*.pid
+*.seed
+
+# Database dumps/backups
+*.sql
+*.dump
+
+# Docker
+Dockerfile*
+.dockerignore
+/docker/
+**/.docker/
+
+# Local uploads/temp
+uploads/
+storage/
+
+# Misc
+*.swp
+*.swo
