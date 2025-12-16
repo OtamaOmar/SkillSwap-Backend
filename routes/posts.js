@@ -1,6 +1,18 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticateToken } from '../middleware.js';
+import { searchPosts } from "../controllers/postsController.js";
+import { postImageUpload } from "../utils/upload.js";
+
+import {
+  searchPosts,
+  getFeed,
+  getPostById,
+  updatePost,
+  deletePost,
+  setPostImageUrl
+} from "../controllers/postsController.js";
+
 
 const router = express.Router();
 
@@ -78,6 +90,33 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// Search posts
+router.get('/search', authenticateToken, searchPosts);
+
+// Feed (my posts + accepted friends)
+router.get('/feed', authenticateToken, getFeed);
+
+// Search posts
+router.get('/search', authenticateToken, searchPosts);
+
+// Read single post
+router.get('/:id', authenticateToken, getPostById);
+
+// Update post (owner only)
+router.put('/:id', authenticateToken, updatePost);
+
+// Delete post (owner only)
+router.delete('/:id', authenticateToken, deletePost);
+
+// Upload post image (owner only)
+// form-data key must be: image
+router.post(
+  '/:id/image',
+  authenticateToken,
+  postImageUpload.single("image"),
+  setPostImageUrl
+);
 
 // Get comments for a post
 router.get('/:id/comments', async (req, res) => {
