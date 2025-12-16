@@ -1,13 +1,12 @@
 import { pool } from "../db.js";
 
-// Helper: build nested comments (replies)
+// Build nested comments tree (replies)
 const buildTree = (rows) => {
   const byId = new Map();
-  const topLevel = [];
+  const roots = [];
 
-  // Normalize + create nodes
   for (const r of rows) {
-    const node = {
+    byId.set(r.id, {
       id: r.id,
       post_id: r.post_id,
       user_id: r.user_id,
@@ -21,23 +20,20 @@ const buildTree = (rows) => {
         avatar_url: r.avatar_url,
       },
       replies: [],
-    };
-    byId.set(node.id, node);
+    });
   }
 
-  // Link children
   for (const node of byId.values()) {
     if (node.parent_comment_id && byId.has(node.parent_comment_id)) {
       byId.get(node.parent_comment_id).replies.push(node);
     } else {
-      topLevel.push(node);
+      roots.push(node);
     }
   }
 
-  return topLevel;
+  return roots;
 };
 
-// Helper: create notification
 const createNotification = async ({
   user_id,
   from_user_id,
@@ -68,8 +64,7 @@ export const getCommentsForPost = async (req, res) => {
       [postId]
     );
 
-    const tree = buildTree(result.rows);
-    res.json({ post_id: Number(postId), comments: tree });
+    res.json({ post_id: Number(postId), comments: buildTree(result.rows) });
   } catch (error) {
     console.error("Get comments error:", error);
     res.status(500).json({ error: "Server error" });
@@ -87,19 +82,20 @@ export const addCommentToPost = async (req, res) => {
       return res.status(400).json({ error: "Content is required" });
     }
 
-    // confirm post exists + get owner
+    // confirm post exists + get post owner
     const post = await pool.query("SELECT id, user_id FROM posts WHERE id = $1", [postId]);
     if (post.rows.length === 0) return res.status(404).json({ error: "Post not found" });
 
     const postOwnerId = post.rows[0].user_id;
 
-    // if reply: validate parent comment belongs to same post
+    // if reply: validate parent comment belongs to the same post
     let parentOwnerId = null;
     if (parent_comment_id) {
       const parent = await pool.query(
         "SELECT id, user_id, post_id FROM comments WHERE id = $1",
         [parent_comment_id]
       );
+
       if (parent.rows.length === 0) return res.status(404).json({ error: "Parent comment not found" });
       if (Number(parent.rows[0].post_id) !== Number(postId)) {
         return res.status(400).json({ error: "Parent comment does not belong to this post" });
@@ -114,25 +110,19 @@ export const addCommentToPost = async (req, res) => {
       [req.user.id, postId, content.trim(), parent_comment_id ?? null]
     );
 
-    // Attach user info (same response style as GET)
-    const commentRow = inserted.rows[0];
     const userInfo = await pool.query(
       "SELECT username, full_name, avatar_url FROM profiles WHERE id = $1",
       [req.user.id]
     );
 
     const responseComment = {
-      ...commentRow,
+      ...inserted.rows[0],
       user: userInfo.rows[0] ?? { username: null, full_name: null, avatar_url: null },
     };
 
     // Notifications (avoid notifying yourself)
     const receivers = new Set();
-
-    // notify post owner for any comment (including replies)
     if (postOwnerId && postOwnerId !== req.user.id) receivers.add(postOwnerId);
-
-    // if reply: also notify parent comment owner
     if (parentOwnerId && parentOwnerId !== req.user.id) receivers.add(parentOwnerId);
 
     const actorName = req.user.username || req.user.full_name || "Someone";
@@ -160,22 +150,23 @@ export const addCommentToPost = async (req, res) => {
   }
 };
 
-// DELETE /api/posts/comments/:commentId
+// DELETE /api/comments/:commentId
+// Allowed: comment owner OR post owner. Soft delete if it has replies.
 export const deleteComment = async (req, res) => {
   const client = await pool.connect();
   try {
     const commentId = req.params.commentId;
 
     const comment = await client.query(
-      "SELECT id, user_id, post_id, parent_comment_id FROM comments WHERE id = $1",
+      "SELECT id, user_id, post_id FROM comments WHERE id = $1",
       [commentId]
     );
     if (comment.rows.length === 0) return res.status(404).json({ error: "Comment not found" });
 
-    const { user_id: commentOwnerId, post_id } = comment.rows[0];
+    const commentOwnerId = comment.rows[0].user_id;
+    const postId = comment.rows[0].post_id;
 
-    // Allow deletion by: comment owner OR post owner (moderation)
-    const post = await client.query("SELECT user_id FROM posts WHERE id = $1", [post_id]);
+    const post = await client.query("SELECT user_id FROM posts WHERE id = $1", [postId]);
     const postOwnerId = post.rows[0]?.user_id;
 
     const allowed = req.user.id === commentOwnerId || (postOwnerId && req.user.id === postOwnerId);
@@ -183,7 +174,6 @@ export const deleteComment = async (req, res) => {
 
     await client.query("BEGIN");
 
-    // If comment has replies => soft delete
     const repliesCount = await client.query(
       "SELECT COUNT(*)::int AS cnt FROM comments WHERE parent_comment_id = $1",
       [commentId]
@@ -198,9 +188,7 @@ export const deleteComment = async (req, res) => {
       return res.json({ success: true, mode: "soft", comment: updated.rows[0] });
     }
 
-    // No replies => hard delete
     await client.query("DELETE FROM comments WHERE id = $1", [commentId]);
-
     await client.query("COMMIT");
     res.json({ success: true, mode: "hard" });
   } catch (error) {

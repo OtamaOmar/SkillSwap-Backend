@@ -8,6 +8,7 @@ import postsRoutes from "./routes/posts.js";
 import skillsRoutes from "./routes/skills.js";
 import friendshipsRoutes from "./routes/friendships.js";
 import notificationsRoutes from "./routes/notifications.js";
+import commentsRoutes from "./routes/comments.js";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/comments", commentsRoutes);
 
 const PORT = process.env.PORT || 4000;
 
