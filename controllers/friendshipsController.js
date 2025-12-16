@@ -12,11 +12,11 @@ const getOtherId = (row, myId) => (row.user_id === myId ? row.friend_id : row.us
 // body: { toUserId }
 export const sendFriendRequest = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
-    const toUserId = Number(req.body.toUserId);
+    const myId = req.user.id; // Keep as UUID string
+    const toUserId = req.body.toUserId;
 
-    if (!toUserId || !Number.isFinite(toUserId)) {
-      return res.status(400).json({ error: "toUserId is required (number)" });
+    if (!toUserId) {
+      return res.status(400).json({ error: "toUserId is required" });
     }
     if (toUserId === myId) {
       return res.status(400).json({ error: "You cannot send a friend request to yourself" });
@@ -70,7 +70,7 @@ export const sendFriendRequest = async (req, res) => {
 // GET /api/friends/requests/incoming
 export const getIncomingRequests = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
+    const myId = req.user.id; // Keep as UUID string
 
     const result = await pool.query(
       `SELECT fr.*,
@@ -119,9 +119,9 @@ export const getOutgoingRequests = async (req, res) => {
 // PATCH /api/friends/requests/:otherUserId/accept
 export const acceptRequest = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
-    const otherUserId = Number(req.params.otherUserId);
-    if (!otherUserId || !Number.isFinite(otherUserId)) {
+    const myId = req.user.id; // Keep as UUID string
+    const otherUserId = req.params.otherUserId;
+    if (!otherUserId) {
       return res.status(400).json({ error: "otherUserId is required" });
     }
     if (otherUserId === myId) return res.status(400).json({ error: "Invalid user" });
@@ -158,9 +158,9 @@ export const acceptRequest = async (req, res) => {
 // PATCH /api/friends/requests/:otherUserId/reject
 export const rejectRequest = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
-    const otherUserId = Number(req.params.otherUserId);
-    if (!otherUserId || !Number.isFinite(otherUserId)) {
+    const myId = req.user.id; // Keep as UUID string
+    const otherUserId = req.params.otherUserId;
+    if (!otherUserId) {
       return res.status(400).json({ error: "otherUserId is required" });
     }
     if (otherUserId === myId) return res.status(400).json({ error: "Invalid user" });
@@ -197,10 +197,10 @@ export const rejectRequest = async (req, res) => {
 // DELETE /api/friends/:otherUserId  (unfriend OR cancel request)
 export const unfriend = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
-    const otherUserId = Number(req.params.otherUserId);
+    const myId = req.user.id; // Keep as UUID string
+    const otherUserId = req.params.otherUserId;
 
-    if (!otherUserId || !Number.isFinite(otherUserId)) {
+    if (!otherUserId) {
       return res.status(400).json({ error: "otherUserId is required" });
     }
     if (otherUserId === myId) return res.status(400).json({ error: "Invalid user" });
@@ -252,7 +252,7 @@ export const getConnections = async (req, res) => {
 // Suggest friends-of-friends by mutual count, excluding existing/pending/rejected pairs.
 export const getSuggestions = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
+    const myId = req.user.id; // Keep as UUID string
 
     let limit = Number(req.query.limit ?? 20);
     let offset = Number(req.query.offset ?? 0);

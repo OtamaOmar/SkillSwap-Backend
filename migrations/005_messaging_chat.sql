@@ -2,8 +2,8 @@
 
 CREATE TABLE IF NOT EXISTS messages (
   id SERIAL PRIMARY KEY,
-  sender_id INTEGER NOT NULL,
-  receiver_id INTEGER NOT NULL,
+  sender_id UUID NOT NULL,
+  receiver_id UUID NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   read_at TIMESTAMPTZ NULL
@@ -29,3 +29,4 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver_created
 
 CREATE INDEX IF NOT EXISTS idx_messages_receiver_read
   ON messages(receiver_id, read_at);
+

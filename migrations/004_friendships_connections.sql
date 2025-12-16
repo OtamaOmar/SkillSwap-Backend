@@ -3,22 +3,23 @@
 -- Friendships table: one row per pair (canonical order user_id < friend_id)
 CREATE TABLE IF NOT EXISTS friendships (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL,
-  friend_id INTEGER NOT NULL,
+  user_id UUID NOT NULL,
+  friend_id UUID NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending', -- pending | accepted | rejected
-  requested_by INTEGER NOT NULL,          -- who sent the request
+  requested_by UUID NOT NULL,          -- who sent the request
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Canonical ordering constraint (helps keep one row per pair)
+-- Note: UUID comparison works left-to-right as strings
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'friendships_user_friend_order_chk'
   ) THEN
     ALTER TABLE friendships
-      ADD CONSTRAINT friendships_user_friend_order_chk CHECK (user_id < friend_id);
+      ADD CONSTRAINT friendships_user_friend_order_chk CHECK (user_id::text < friend_id::text);
   END IF;
 END$$;
 

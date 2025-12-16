@@ -10,6 +10,8 @@ import postsRoutes from "./routes/posts.js";
 import skillsRoutes from "./routes/skills.js";
 import friendshipsRoutes from "./routes/friendships.js";
 import chatRoutes from "./routes/chat.js";
+import commentsRoutes from "./routes/comments.js";
+import notificationsRoutes from "./routes/notifications.js";
 
 dotenv.config();
 
@@ -154,6 +156,8 @@ app.use("/api/users", usersRoutes);
 app.use("/api/posts", postsRoutes);
 app.use("/api/skills", skillsRoutes);
 app.use("/api/friendships", friendshipsRoutes);
+app.use("/api/comments", commentsRoutes);
+app.use("/api/notifications", notificationsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
