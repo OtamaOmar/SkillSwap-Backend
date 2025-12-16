@@ -21,6 +21,7 @@ app.use(cors({
   credentials: true
 }));
 
+app.use("/api/friendships", friendshipsRoutes);
 app.use("/api/friends", friendshipsRoutes);
 app.use(express.json());
 app.use("/api/chat", chatRoutes);

@@ -1,26 +1,27 @@
 import { pool } from "../db.js";
 
+// IMPORTANT: Supabase profile ids are UUID strings. DO NOT Number() them.
+const asId = (v) => String(v || "").trim();
+
 const canonicalPair = (a, b) => {
-  const x = Number(a);
-  const y = Number(b);
-  return x < y ? [x, y] : [y, x];
+  const x = asId(a);
+  const y = asId(b);
+  return x < y ? [x, y] : [y, x]; // lexicographic compare works for UUID
 };
 
 const getOtherId = (row, myId) => (row.user_id === myId ? row.friend_id : row.user_id);
+
 
 // POST /api/friends/request
 // body: { toUserId }
 export const sendFriendRequest = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
-    const toUserId = Number(req.body.toUserId);
+    const myId = asId(req.user.id);
+    const otherUserId = asId(req.params.otherUserId); // or req.body.toUserId
 
-    if (!toUserId || !Number.isFinite(toUserId)) {
-      return res.status(400).json({ error: "toUserId is required (number)" });
-    }
-    if (toUserId === myId) {
-      return res.status(400).json({ error: "You cannot send a friend request to yourself" });
-    }
+    if (!otherUserId) return res.status(400).json({ error: "otherUserId is required" });
+    if (otherUserId === myId) return res.status(400).json({ error: "Invalid user" });
+
 
     // target exists?
     const target = await pool.query("SELECT id FROM profiles WHERE id = $1", [toUserId]);
