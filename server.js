@@ -20,6 +20,7 @@ app.use(cors({
   credentials: true
 }));
 
+app.use("/api/friends", friendshipsRoutes);
 app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
