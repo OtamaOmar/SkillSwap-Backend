@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticateToken } from '../middleware.js';
+import { getCommentsForPost, addCommentToPost, deleteComment } from "../controllers/commentsController.js";
 
 const router = express.Router();
 
@@ -79,46 +80,15 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Get comments for a post
-router.get('/:id/comments', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT c.*, pr.username, pr.full_name, pr.avatar_url
-       FROM comments c
-       LEFT JOIN profiles pr ON c.user_id = pr.id
-       WHERE c.post_id = $1
-       ORDER BY c.created_at DESC`,
-      [req.params.id]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Get comments error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+// Get comments for a post (supports replies via parent_comment_id)
+router.get("/:id/comments", getCommentsForPost);
 
-// Add comment to post
-router.post('/:id/comment', authenticateToken, async (req, res) => {
-  try {
-    const { content } = req.body;
+// Add comment OR reply (send parent_comment_id in body to reply)
+router.post("/:id/comment", authenticateToken, addCommentToPost);
 
-    if (!content) {
-      return res.status(400).json({ error: 'Content is required' });
-    }
+// Delete comment (owner or post owner). Soft deletes if it has replies.
+router.delete("/comments/:commentId", authenticateToken, deleteComment);
 
-    const result = await pool.query(
-      `INSERT INTO comments (user_id, post_id, content)
-       VALUES ($1, $2, $3)
-       RETURNING id, user_id, post_id, content, created_at`,
-      [req.user.id, req.params.id, content]
-    );
-
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Add comment error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // Like post
 router.post('/:id/like', authenticateToken, async (req, res) => {
