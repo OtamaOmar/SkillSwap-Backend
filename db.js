@@ -1,27 +1,25 @@
 import pkg from 'pg';
 import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
+
 const { Pool } = pkg;
 
-// PostgreSQL connection for direct database queries
-export const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+// Prefer DATABASE_URL if provided; fallback to discrete env vars with safe defaults
+const connectionString = process.env.DATABASE_URL;
 
-// Supabase client for authentication and real-time features
-export const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
-);
-
-// Test database connection
-pool.on('connect', () => {
-    console.log('Connected to PostgreSQL database');
-});
+export const pool = connectionString
+  ? new Pool({ connectionString })
+  : new Pool({
+      user: process.env.DB_USER || 'mora',
+      password: process.env.DB_PASSWORD || 'Omar.2005',
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT) || 5432,
+      database: process.env.DB_NAME || 'skillswap_db',
+    });
 
 pool.on('error', (err) => {
-    console.error('Unexpected database error:', err);
+  console.error('Unexpected error on idle client', err);
 });
+
+export default pool;

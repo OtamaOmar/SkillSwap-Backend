@@ -9,6 +9,11 @@ export const registerUser = async (req, res) => {
     const { username, email, password, full_name } = req.body;
 
     try {
+        // Validate required fields
+        if (!username || !email || !password || !full_name) {
+            return res.status(400).json({ error: "Missing required fields: username, email, password, full_name" });
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const result = await pool.query(
@@ -16,9 +21,23 @@ export const registerUser = async (req, res) => {
             [username, email, full_name]
         );
 
-        res.json(result.rows[0]);
+        // Create a mock session object to match expected client format
+        const user = result.rows[0];
+        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+
+        res.json({
+            session: {
+                access_token: token,
+                refresh_token: token,
+            },
+            user: user
+        });
 
     } catch (err) {
+        // Check if error is due to duplicate email or username
+        if (err.code === '23505') { // Unique constraint violation
+            return res.status(400).json({ error: "Email or username already exists" });
+        }
         res.status(500).json({ error: err.message });
     }
 };

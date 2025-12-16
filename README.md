@@ -1,10 +1,35 @@
 # SkillSwap Backend
 
-Node.js + Express backend with Supabase authentication and PostgreSQL database.
+Node.js + Express backend with JWT authentication and a direct PostgreSQL database connection (no Supabase SDK).
+
+## Docker & Railway quick start
+
+- **Local Docker (backend + PostgreSQL):**
+  1) Copy `.env` (see sample below) then run `docker compose up --build`. This starts the API on port 4000 and Postgres on 5432.
+  2) Healthcheck waits for Postgres before the API is marked healthy.
+- **Full-stack Docker:** from the `SkillSwap-Frontend` folder run `docker compose up --build` to bring up frontend (port 8000), backend (port 4000), and PostgreSQL (port 5432).
+- **Railway CI/CD:** pushes to `main` trigger `.github/workflows/cd.yml` which builds/pushes the image and deploys to Railway using the secrets listed below.
+
+### Backend env sample (.env)
+
+```
+NODE_ENV=production
+PORT=4000
+FRONTEND_URL=http://localhost:8000
+DATABASE_URL=postgres://mora:Omar.2005@localhost:5432/skillswap_db
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=mora
+DB_PASSWORD=Omar.2005
+DB_NAME=skillswap_db
+JWT_SECRET=change-me
+```
+
+> For Railway, set the same variables via project Variables or let the GitHub Action set them using secrets.
 
 ## Features
 
-- **Supabase Authentication**: User signup, login, logout, and session management
+- **JWT Authentication**: User signup, login, logout, and session management
 - **PostgreSQL Database**: Direct database access for complex queries
 - **RESTful API**: Complete CRUD operations for all resources
 - **JWT Token Management**: Secure authentication with access and refresh tokens
@@ -13,8 +38,7 @@ Node.js + Express backend with Supabase authentication and PostgreSQL database.
 ## Tech Stack
 
 - Node.js + Express
-- Supabase (Authentication & Database)
-- PostgreSQL (via Supabase)
+- PostgreSQL (via `pg` Pool)
 - Axios (HTTP client)
 - dotenv (Environment variables)
 
@@ -37,31 +61,20 @@ PORT=4000
 NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 
-# Supabase Configuration
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
+# Database Configuration (PostgreSQL)
+DATABASE_URL=postgresql://user:password@host:port/database
 
-# Database Configuration (Supabase PostgreSQL)
-DATABASE_URL=postgresql://user:password@host:port/database?sslmode=require
-
-# JWT Secret (Optional - Supabase handles auth)
+# JWT Secret
 JWT_SECRET=your_jwt_secret_key_here
 ```
 
-### 3. Get Supabase Credentials
+### 3. PostgreSQL Connection
 
-1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
-2. Create a new project or select existing one
-3. Go to **Settings** > **API**
-4. Copy:
-   - Project URL → `SUPABASE_URL`
-   - anon/public key → `SUPABASE_ANON_KEY`
-5. Go to **Settings** > **Database**
-6. Copy Connection String (URI) → `DATABASE_URL`
+Provision a local or hosted PostgreSQL instance and set `DATABASE_URL` (or discrete `DB_*` vars). No Supabase SDK is used.
 
 ### 4. Database Schema
 
-Run the SQL script in Supabase SQL Editor:
+Run the SQL script in your PostgreSQL instance (psql, PgAdmin, or migration scripts):
 
 ```sql
 -- Enable UUID extension
@@ -275,13 +288,12 @@ lsof -ti:4000 | xargs kill -9
 ### Database Connection Issues
 
 1. Verify your `DATABASE_URL` is correct
-2. Check if Supabase project is active
-3. Ensure you're using the correct pooling mode (Transaction vs Session)
+2. Ensure PostgreSQL is reachable and credentials are correct
+3. Verify your `pg` Pool initialization in `db.js`
 
 ### Authentication Issues
 
-1. Verify `SUPABASE_URL` and `SUPABASE_ANON_KEY` are correct
-2. Check if tokens are properly stored in frontend
+1. Check if tokens are properly stored in frontend
 3. Ensure Authorization header format: `Bearer <token>`
 
 ## Development
