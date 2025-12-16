@@ -9,6 +9,7 @@ import usersRoutes from "./routes/users.js";
 import postsRoutes from "./routes/posts.js";
 import skillsRoutes from "./routes/skills.js";
 import friendshipsRoutes from "./routes/friendships.js";
+import chatRoutes from "./routes/chat.js";
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.use(cors({
 
 app.use("/api/friends", friendshipsRoutes);
 app.use(express.json());
+app.use("/api/chat", chatRoutes);
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
