@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticateToken } from '../middleware.js';
+import { sharePost, unsharePost, addView } from "../controllers/engagementController.js";
 
 const router = express.Router();
 
@@ -151,5 +152,13 @@ router.delete('/:id/like', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+// Share post
+router.post("/:id/share", authenticateToken, sharePost);
+
+// Unshare post
+router.delete("/:id/share", authenticateToken, unsharePost);
+
+// View count (increment)
+router.post("/:id/view", addView);
 
 export default router;
