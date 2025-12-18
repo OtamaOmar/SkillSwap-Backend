@@ -20,10 +20,24 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
+        cache: 'npm'
 
     - name: Install dependencies
       run: npm install
+
+    - name: Run tests before deployment
+      run: npm test --if-present
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: skillswap_test
+        DB_USER: test_user
+        DB_PASSWORD: test_password
+        NODE_ENV: test
+
+    - name: Check build
+      run: npm run build --if-present
 
     - name: Build Docker image
       run: |
@@ -32,7 +46,6 @@ jobs:
       if: false  # Uncomment when Docker registry is configured
 
     - name: Deploy to hosting platform
-      working-directory: ./SkillSwap-Backend
       run: |
         echo "Deploying Backend to production..."
         # Configure your deployment platform:
@@ -46,7 +59,6 @@ jobs:
         PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
 
     - name: Run smoke tests
-      working-directory: ./SkillSwap-Backend
       run: |
         echo "Running smoke tests on deployed service..."
         # Add health check curl or test calls here
