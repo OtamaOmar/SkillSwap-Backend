@@ -9,6 +9,7 @@ import {
   unfriend,
   getConnections,
   getSuggestions,
+  getFriendshipStatus,
 } from "../controllers/friendshipsController.js";
 
 const router = express.Router();
@@ -23,6 +24,9 @@ router.get("/requests/outgoing", authenticateToken, getOutgoingRequests);
 // Accept / Reject by other user id
 router.patch("/requests/:otherUserId/accept", authenticateToken, acceptRequest);
 router.patch("/requests/:otherUserId/reject", authenticateToken, rejectRequest);
+
+// Get friendship status with another user
+router.get("/status/:otherUserId", authenticateToken, getFriendshipStatus);
 
 // Unfriend (also cancels pending)
 router.delete("/:otherUserId", authenticateToken, unfriend);

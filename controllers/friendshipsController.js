@@ -51,6 +51,15 @@ export const sendFriendRequest = async (req, res) => {
            RETURNING *`,
           [u, f, myId]
         );
+        
+        // Create notification for the recipient
+        const recipientId = u === myId ? f : u;
+        await pool.query(
+          `INSERT INTO notifications (user_id, actor_id, notification_type, related_friendship_id)
+           VALUES ($1, $2, 'friend_request', $3)`,
+          [recipientId, myId, updated.rows[0].id]
+        );
+        
         return res.json({ success: true, friendship: updated.rows[0], message: "Request sent again" });
       }
 
@@ -63,6 +72,14 @@ export const sendFriendRequest = async (req, res) => {
        VALUES ($1, $2, 'pending', $3)
        RETURNING *`,
       [u, f, myId]
+    );
+
+    // Create notification for the recipient
+    const recipientId = u === myId ? f : u;
+    await pool.query(
+      `INSERT INTO notifications (user_id, actor_id, notification_type, related_friendship_id)
+       VALUES ($1, $2, 'friend_request', $3)`,
+      [recipientId, myId, created.rows[0].id]
     );
 
     res.status(201).json({ success: true, friendship: created.rows[0] });
@@ -153,6 +170,13 @@ export const acceptRequest = async (req, res) => {
       [u, f]
     );
 
+    // Create notification for the requester (the person who sent the request)
+    await pool.query(
+      `INSERT INTO notifications (user_id, actor_id, notification_type, related_friendship_id)
+       VALUES ($1, $2, 'friend_request_accepted', $3)`,
+      [row.requested_by, myId, updated.rows[0].id]
+    );
+
     res.json({ success: true, friendship: updated.rows[0] });
   } catch (error) {
     console.error("acceptRequest error:", error);
@@ -190,6 +214,13 @@ export const rejectRequest = async (req, res) => {
        WHERE user_id = $1 AND friend_id = $2
        RETURNING *`,
       [u, f]
+    );
+
+    // Create notification for the requester (the person who sent the request)
+    await pool.query(
+      `INSERT INTO notifications (user_id, actor_id, notification_type, related_friendship_id)
+       VALUES ($1, $2, 'friend_request_rejected', $3)`,
+      [row.requested_by, myId, updated.rows[0].id]
     );
 
     res.json({ success: true, friendship: updated.rows[0] });
@@ -323,6 +354,44 @@ export const getSuggestions = async (req, res) => {
     });
   } catch (error) {
     console.error("getSuggestions error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// GET /api/friends/status/:otherUserId
+// Get friendship status with another user
+export const getFriendshipStatus = async (req, res) => {
+  try {
+    const myId = req.user.id;
+    const otherUserId = req.params.otherUserId;
+
+    if (!otherUserId) {
+      return res.status(400).json({ error: "otherUserId is required" });
+    }
+    if (otherUserId === myId) {
+      return res.json({ status: "self" });
+    }
+
+    const [u, f] = canonicalPair(myId, otherUserId);
+
+    const result = await pool.query(
+      "SELECT * FROM friendships WHERE user_id = $1 AND friend_id = $2",
+      [u, f]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ status: "none" });
+    }
+
+    const row = result.rows[0];
+    return res.json({
+      status: row.status,
+      requested_by: row.requested_by,
+      is_requester: row.requested_by === myId,
+      friendship_id: row.id
+    });
+  } catch (error) {
+    console.error("getFriendshipStatus error:", error);
     res.status(500).json({ error: "Server error" });
   }
 };

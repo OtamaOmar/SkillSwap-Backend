@@ -14,7 +14,7 @@ const createNotification = async ({ user_id, actor_id, notification_type, relate
 // returns recent chats (one row per other user)
 export const getConversations = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
+    const myId = req.user.id; // UUID string
 
     const result = await pool.query(
       `
@@ -64,8 +64,8 @@ export const getConversations = async (req, res) => {
 // GET /api/chat/with/:userId?limit=30&offset=0
 export const getChatHistory = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
-    const otherId = Number(req.params.userId);
+    const myId = req.user.id; // UUID string
+    const otherId = req.params.userId; // UUID string
 
     let limit = Number(req.query.limit ?? 30);
     let offset = Number(req.query.offset ?? 0);
@@ -100,12 +100,12 @@ export const getChatHistory = async (req, res) => {
 // body: { toUserId, content }
 export const sendMessage = async (req, res) => {
   try {
-    const fromId = Number(req.user.id);
-    const toId = Number(req.body.toUserId);
+    const fromId = req.user.id; // UUID string
+    const toId = req.body.toUserId; // UUID string
     const content = String(req.body.content ?? "").trim();
 
-    if (!toId || !Number.isFinite(toId)) {
-      return res.status(400).json({ error: "toUserId is required (number)" });
+    if (!toId) {
+      return res.status(400).json({ error: "toUserId is required" });
     }
     if (!content) return res.status(400).json({ error: "content is required" });
     if (toId === fromId) return res.status(400).json({ error: "Cannot message yourself" });
@@ -147,8 +147,8 @@ export const sendMessage = async (req, res) => {
 // PATCH /api/chat/with/:userId/read
 export const markChatRead = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
-    const otherId = Number(req.params.userId);
+    const myId = req.user.id; // UUID string
+    const otherId = req.params.userId; // UUID string
 
     const updated = await pool.query(
       `
@@ -179,7 +179,7 @@ export const stream = async (req, res) => {
   // If behind proxies, helps:
   res.flushHeaders?.();
 
-  const myId = Number(req.user.id);
+  const myId = req.user.id; // UUID string
   addClient(myId, res);
 
   // initial ping

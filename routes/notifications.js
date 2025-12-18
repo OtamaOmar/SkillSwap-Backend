@@ -16,6 +16,8 @@ router.get('/', authenticateToken, async (req, res) => {
               p.username AS actor_username, p.full_name AS actor_full_name, p.avatar_url AS actor_avatar_url,
               CASE n.notification_type
                 WHEN 'friend_request' THEN COALESCE(p.full_name, p.username, 'Someone') || ' sent you a friend request'
+                WHEN 'friend_request_accepted'  THEN COALESCE(p.full_name, p.username, 'Someone') || ' accepted your friend request'
+                WHEN 'friend_request_rejected'  THEN COALESCE(p.full_name, p.username, 'Someone') || ' rejected your friend request'
                 WHEN 'friend_accept'  THEN COALESCE(p.full_name, p.username, 'Someone') || ' accepted your friend request'
                 WHEN 'like'           THEN COALESCE(p.full_name, p.username, 'Someone') || ' liked your post'
                 WHEN 'comment'        THEN COALESCE(p.full_name, p.username, 'Someone') || ' commented on your post'
