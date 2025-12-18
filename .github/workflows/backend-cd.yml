@@ -23,11 +23,9 @@ jobs:
         node-version: '18'
 
     - name: Install dependencies
-      working-directory: ./SkillSwap-Backend
       run: npm ci
 
     - name: Build Docker image
-      working-directory: ./SkillSwap-Backend
       run: |
         docker build -t skillswap-backend:latest .
         docker tag skillswap-backend:latest skillswap-backend:${{ github.sha }}

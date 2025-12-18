@@ -3,13 +3,8 @@ name: Backend CI/CD
 on:
   push:
     branches: [ main, dev ]
-    paths:
-      - 'SkillSwap-Backend/**'
-      - '.github/workflows/backend-ci.yml'
   pull_request:
     branches: [ main, dev ]
-    paths:
-      - 'SkillSwap-Backend/**'
 
 jobs:
   build-and-test:
@@ -40,18 +35,15 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-        cache-dependency-path: 'SkillSwap-Backend/package-lock.json'
+        cache-dependency-path: 'package-lock.json'
 
     - name: Install dependencies
-      working-directory: ./SkillSwap-Backend
       run: npm ci
 
     - name: Lint
-      working-directory: ./SkillSwap-Backend
       run: npm run lint --if-present
 
     - name: Run tests
-      working-directory: ./SkillSwap-Backend
       run: npm test --if-present
       env:
         DB_HOST: localhost
@@ -62,7 +54,6 @@ jobs:
         NODE_ENV: test
 
     - name: Check build
-      working-directory: ./SkillSwap-Backend
       run: npm run build --if-present
 
   deploy:
