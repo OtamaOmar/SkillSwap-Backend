@@ -9,7 +9,7 @@ router.get('/me', authenticateToken, async (req, res) => {
   try {
     // First check if profile exists
     let result = await pool.query(
-      `SELECT id, username, email, full_name, avatar_url, role, created_at
+      `SELECT id, username, email, full_name, bio, location, country, avatar_url, cover_image_url, role, created_at
        FROM profiles WHERE id = $1`,
       [req.user.id]
     );
@@ -23,7 +23,7 @@ router.get('/me', authenticateToken, async (req, res) => {
         `INSERT INTO profiles (id, username, email, full_name, role)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (id) DO UPDATE SET email = $3
-         RETURNING id, username, email, full_name, avatar_url, role, created_at`,
+         RETURNING id, username, email, full_name, bio, location, country, avatar_url, cover_image_url, role, created_at`,
         [req.user.id, username, req.user.email, full_name, 'user']
       );
     }
@@ -58,7 +58,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT id, username, full_name, avatar_url, email, role, created_at
+      `SELECT id, username, full_name, bio, location, country, avatar_url, cover_image_url, email, role, created_at
        FROM profiles WHERE id = $1::uuid`,
       [userId]
     );
@@ -77,12 +77,11 @@ router.get('/:id', authenticateToken, async (req, res) => {
 
     user.skills = skills.rows;
 
-    // Get stats
+    // Get stats - count accepted friendships correctly
     const stats = await pool.query(
       `SELECT 
         (SELECT COUNT(*) FROM posts WHERE user_id = $1) as posts,
-        (SELECT COUNT(*) FROM friendships WHERE user_id = $1 AND status = 'accepted') as following,
-        (SELECT COUNT(*) FROM friendships WHERE friend_id = $1 AND status = 'accepted') as followers`,
+        (SELECT COUNT(*) FROM friendships WHERE status = 'accepted' AND (user_id = $1 OR friend_id = $1)) as friends`,
       [req.params.id]
     );
 
@@ -119,10 +118,13 @@ router.put('/me', authenticateToken, async (req, res) => {
     const result = await pool.query(
       `UPDATE profiles 
        SET full_name = COALESCE($1, full_name),
+           bio = COALESCE($2, bio),
+           location = COALESCE($3, location),
+           country = COALESCE($4, country),
            updated_at = NOW()
-       WHERE id = $2
-       RETURNING id, username, email, full_name, avatar_url, role, created_at`,
-      [full_name, req.user.id]
+       WHERE id = $5
+       RETURNING id, username, email, full_name, bio, location, country, avatar_url, cover_image_url, role, created_at`,
+      [full_name, bio, location, country, req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -165,27 +167,25 @@ router.get('/:id/posts', authenticateToken, async (req, res) => {
 // Add skill
 router.post('/skills', authenticateToken, async (req, res) => {
   try {
-    const { skill_name, proficiency_level } = req.body;
+    const { skill_name, skill_type } = req.body;
 
-    if (!skill_name) {
-      return res.status(400).json({ error: 'Skill name is required' });
+    if (!skill_name || !skill_type) {
+      return res.status(400).json({ error: 'Skill name and type are required' });
     }
 
     const result = await pool.query(
       `INSERT INTO skills (user_id, skill_name, skill_type)
        VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, skill_name) DO NOTHING
-       RETURNING id, skill_name, skill_type, proficiency_level`,
-      [req.user.id, skill_name, proficiency_level || 'Intermediate']
+       RETURNING id, skill_name, skill_type, created_at`,
+      [req.user.id, skill_name, skill_type]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Skill already exists' });
-    }
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Add skill error:', error);
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'Skill already exists' });
+    }
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -193,13 +193,64 @@ router.post('/skills', authenticateToken, async (req, res) => {
 // Delete skill
 router.delete('/skills/:skillId', authenticateToken, async (req, res) => {
   try {
-    await pool.query(
-      'DELETE FROM skills WHERE id = $1 AND user_id = $2',
+    const result = await pool.query(
+      'DELETE FROM skills WHERE id = $1 AND user_id = $2 RETURNING *',
       [req.params.skillId, req.user.id]
     );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
     res.json({ success: true });
   } catch (error) {
     console.error('Delete skill error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Upload profile picture
+router.post('/upload/profile-picture', authenticateToken, async (req, res) => {
+  try {
+    const { avatar_url } = req.body;
+    if (!avatar_url) {
+      return res.status(400).json({ error: 'avatar_url is required' });
+    }
+
+    const result = await pool.query(
+      'UPDATE profiles SET avatar_url = $1, updated_at = NOW() WHERE id = $2 RETURNING avatar_url',
+      [avatar_url, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ avatar_url: result.rows[0].avatar_url });
+  } catch (error) {
+    console.error('Upload profile picture error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Upload cover image
+router.post('/upload/cover-image', authenticateToken, async (req, res) => {
+  try {
+    const { cover_image_url } = req.body;
+    if (!cover_image_url) {
+      return res.status(400).json({ error: 'cover_image_url is required' });
+    }
+
+    const result = await pool.query(
+      'UPDATE profiles SET cover_image_url = $1, updated_at = NOW() WHERE id = $2 RETURNING cover_image_url',
+      [cover_image_url, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ cover_image_url: result.rows[0].cover_image_url });
+  } catch (error) {
+    console.error('Upload cover image error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

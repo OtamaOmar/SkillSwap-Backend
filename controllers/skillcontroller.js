@@ -1,4 +1,4 @@
-import * as skillService from "../services/skill.service.js";
+import * as skillService from "../user_profile_mangement/services/skill.service.js";
 
 export const addSkill = async (req, res) => {
   try {
