@@ -292,7 +292,7 @@ export const getConnections = async (req, res) => {
 };
 
 // GET /api/friends/suggestions?limit=20&offset=0
-// Suggest friends-of-friends by mutual count, excluding existing/pending/rejected pairs.
+// Suggest friends-of-friends by mutual count, but still return other unconnected users as fallback.
 export const getSuggestions = async (req, res) => {
   try {
     const myId = req.user.id; // Keep as UUID string
@@ -311,6 +311,7 @@ export const getSuggestions = async (req, res) => {
         WHERE status = 'accepted' AND ($1 = user_id OR $1 = friend_id)
       ),
       fof AS (
+        -- friends of my friends
         SELECT
           CASE WHEN f.user_id = mf.friend_id THEN f.friend_id ELSE f.user_id END AS candidate_id
         FROM friendships f
@@ -318,29 +319,30 @@ export const getSuggestions = async (req, res) => {
           ON (f.user_id = mf.friend_id OR f.friend_id = mf.friend_id)
         WHERE f.status = 'accepted'
       ),
-      filtered AS (
-        SELECT candidate_id
+      mutuals AS (
+        SELECT candidate_id, COUNT(*)::int AS mutual_count
         FROM fof
         WHERE candidate_id <> $1
-          AND candidate_id NOT IN (SELECT friend_id FROM my_friends)
+        GROUP BY candidate_id
       ),
       excluded AS (
-        -- anyone who already has a relationship row with me (pending/accepted/rejected)
+        -- anyone who already has an active or pending relationship with me; allow re-suggesting rejected to enable re-request flow
         SELECT CASE WHEN user_id = $1 THEN friend_id ELSE user_id END AS other_id
         FROM friendships
         WHERE ($1 = user_id OR $1 = friend_id)
+          AND status IN ('accepted','pending')
       )
       SELECT
         p.id,
         p.username,
         p.full_name,
         p.avatar_url,
-        COUNT(*)::int AS mutual_count
-      FROM filtered f
-      JOIN profiles p ON p.id = f.candidate_id
-      WHERE f.candidate_id NOT IN (SELECT other_id FROM excluded)
-      GROUP BY p.id, p.username, p.full_name, p.avatar_url
-      ORDER BY mutual_count DESC, p.id ASC
+        COALESCE(m.mutual_count, 0) AS mutual_count
+      FROM profiles p
+      LEFT JOIN mutuals m ON m.candidate_id = p.id
+      WHERE p.id <> $1
+        AND p.id NOT IN (SELECT other_id FROM excluded)
+      ORDER BY COALESCE(m.mutual_count, 0) DESC, p.created_at DESC
       LIMIT $2 OFFSET $3
       `,
       [myId, limit, offset]

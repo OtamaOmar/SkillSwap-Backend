@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from '../db.js';
 import { authenticateToken } from '../middleware.js';
+import { avatarUpload, coverUpload } from '../utils/upload.js';
 
 const router = express.Router();
 
@@ -42,6 +43,20 @@ router.get('/me', authenticateToken, async (req, res) => {
       user.skills = [];
     }
 
+    // Get stats (posts + accepted friends)
+    try {
+      const stats = await pool.query(
+        `SELECT 
+          COALESCE((SELECT COUNT(*)::int FROM posts WHERE user_id = $1), 0) AS posts,
+          COALESCE((SELECT COUNT(*)::int FROM friendships WHERE status = 'accepted' AND (user_id = $1 OR friend_id = $1)), 0) AS friends`,
+        [req.user.id]
+      );
+      user.stats = stats.rows?.[0] || { posts: 0, friends: 0 };
+    } catch (statsError) {
+      console.warn('Stats query failed, defaulting to zero counts', statsError?.message || statsError);
+      user.stats = { posts: 0, friends: 0 };
+    }
+
     res.json(user);
   } catch (error) {
     console.error('Get current user error:', error);
@@ -80,8 +95,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
     // Get stats - count accepted friendships correctly
     const stats = await pool.query(
       `SELECT 
-        (SELECT COUNT(*) FROM posts WHERE user_id = $1) as posts,
-        (SELECT COUNT(*) FROM friendships WHERE status = 'accepted' AND (user_id = $1 OR friend_id = $1)) as friends`,
+        COALESCE((SELECT COUNT(*)::int FROM posts WHERE user_id = $1), 0) AS posts,
+        COALESCE((SELECT COUNT(*)::int FROM friendships WHERE status = 'accepted' AND (user_id = $1 OR friend_id = $1)), 0) AS friends`,
       [req.params.id]
     );
 
@@ -208,16 +223,22 @@ router.delete('/skills/:skillId', authenticateToken, async (req, res) => {
 });
 
 // Upload profile picture
-router.post('/upload/profile-picture', authenticateToken, async (req, res) => {
+// Upload profile picture (multipart form-data: key "image")
+router.post('/upload/profile-picture', authenticateToken, avatarUpload.single('image'), async (req, res) => {
   try {
-    const { avatar_url } = req.body;
-    if (!avatar_url) {
-      return res.status(400).json({ error: 'avatar_url is required' });
+    let avatarUrl;
+    if (req.file) {
+      avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    } else if (req.body?.avatar_url) {
+      // Fallback: accept direct URL if provided
+      avatarUrl = req.body.avatar_url;
+    } else {
+      return res.status(400).json({ error: 'No image uploaded. Use form-data key: image or provide avatar_url.' });
     }
 
     const result = await pool.query(
       'UPDATE profiles SET avatar_url = $1, updated_at = NOW() WHERE id = $2 RETURNING avatar_url',
-      [avatar_url, req.user.id]
+      [avatarUrl, req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -232,16 +253,22 @@ router.post('/upload/profile-picture', authenticateToken, async (req, res) => {
 });
 
 // Upload cover image
-router.post('/upload/cover-image', authenticateToken, async (req, res) => {
+// Upload cover image (multipart form-data: key "image")
+router.post('/upload/cover-image', authenticateToken, coverUpload.single('image'), async (req, res) => {
   try {
-    const { cover_image_url } = req.body;
-    if (!cover_image_url) {
-      return res.status(400).json({ error: 'cover_image_url is required' });
+    let coverUrl;
+    if (req.file) {
+      coverUrl = `/uploads/covers/${req.file.filename}`;
+    } else if (req.body?.cover_image_url) {
+      // Fallback: accept direct URL if provided
+      coverUrl = req.body.cover_image_url;
+    } else {
+      return res.status(400).json({ error: 'No image uploaded. Use form-data key: image or provide cover_image_url.' });
     }
 
     const result = await pool.query(
       'UPDATE profiles SET cover_image_url = $1, updated_at = NOW() WHERE id = $2 RETURNING cover_image_url',
-      [cover_image_url, req.user.id]
+      [coverUrl, req.user.id]
     );
 
     if (result.rows.length === 0) {
