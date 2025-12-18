@@ -17,7 +17,7 @@ app.use("/uploads", express.static("uploads"));
 app.use("/api/users", userRoutes);
 app.use("/api/skills", skillRoutes);
 
-const PORT = process.env.DB_PORT || 3000;
+const PORT = process.env.DB_PORT || 4000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

@@ -10,10 +10,23 @@ router.get('/', authenticateToken, async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
     const offset = parseInt(req.query.offset, 10) || 0;
     const result = await pool.query(
-      `SELECT id, user_id, actor_id, notification_type, related_post_id, related_comment_id, is_read, created_at
-       FROM notifications
-       WHERE user_id = $1::uuid
-       ORDER BY created_at DESC
+      `SELECT n.id, n.user_id, n.actor_id, n.notification_type,
+              n.related_post_id, n.related_comment_id, n.related_friendship_id, n.related_message_id,
+              n.is_read, n.created_at,
+              p.username AS actor_username, p.full_name AS actor_full_name, p.avatar_url AS actor_avatar_url,
+              CASE n.notification_type
+                WHEN 'friend_request' THEN COALESCE(p.full_name, p.username, 'Someone') || ' sent you a friend request'
+                WHEN 'friend_accept'  THEN COALESCE(p.full_name, p.username, 'Someone') || ' accepted your friend request'
+                WHEN 'like'           THEN COALESCE(p.full_name, p.username, 'Someone') || ' liked your post'
+                WHEN 'comment'        THEN COALESCE(p.full_name, p.username, 'Someone') || ' commented on your post'
+                WHEN 'message'        THEN COALESCE(p.full_name, p.username, 'Someone') || ' sent you a message'
+                WHEN 'share'          THEN COALESCE(p.full_name, p.username, 'Someone') || ' shared your post'
+                ELSE 'You have a new notification'
+              END AS content
+       FROM notifications n
+       LEFT JOIN profiles p ON p.id = n.actor_id
+       WHERE n.user_id = $1::uuid
+       ORDER BY n.created_at DESC
        LIMIT $2 OFFSET $3`,
       [req.user.id, limit, offset]
     );

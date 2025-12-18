@@ -1,4 +1,5 @@
 import { pool } from "../db.js";
+import { pushToUser } from "../utils/realtime.js";
 
 // IMPORTANT: Supabase profile ids are UUID strings. DO NOT Number() them.
 const asId = (v) => String(v || "").trim();
@@ -98,17 +99,17 @@ export const getIncomingRequests = async (req, res) => {
 // GET /api/friends/requests/outgoing
 export const getOutgoingRequests = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
+    const myId = req.user.id; // UUID string
 
     const result = await pool.query(
       `SELECT fr.*,
               p.id as target_id, p.username as target_username, p.full_name as target_full_name, p.avatar_url as target_avatar_url
        FROM friendships fr
        JOIN profiles p
-         ON p.id = CASE WHEN fr.user_id = $1 THEN fr.friend_id ELSE fr.user_id END
+         ON p.id = CASE WHEN fr.user_id = $1::uuid THEN fr.friend_id ELSE fr.user_id END
        WHERE fr.status = 'pending'
-         AND fr.requested_by = $1
-         AND ($1 = fr.user_id OR $1 = fr.friend_id)
+         AND fr.requested_by = $1::uuid
+         AND ($1::uuid = fr.user_id OR $1::uuid = fr.friend_id)
        ORDER BY fr.created_at DESC`,
       [myId]
     );
@@ -222,25 +223,32 @@ export const unfriend = async (req, res) => {
 // GET /api/friends  (accepted list)
 export const getConnections = async (req, res) => {
   try {
-    const myId = Number(req.user.id);
+    const myId = req.user.id; // UUID string
 
     const result = await pool.query(
-      `SELECT fr.*,
-              p.id, p.username, p.full_name, p.avatar_url
+      `SELECT 
+              fr.id AS friendship_id,
+              fr.status,
+              fr.created_at,
+              fr.updated_at,
+              p.id AS user_id,
+              p.username,
+              p.full_name,
+              p.avatar_url
        FROM friendships fr
        JOIN profiles p
-         ON p.id = CASE WHEN fr.user_id = $1 THEN fr.friend_id ELSE fr.user_id END
+         ON p.id = CASE WHEN fr.user_id = $1::uuid THEN fr.friend_id ELSE fr.user_id END
        WHERE fr.status = 'accepted'
-         AND ($1 = fr.user_id OR $1 = fr.friend_id)
-       ORDER BY fr.updated_at DESC`,
+         AND ($1::uuid = fr.user_id OR $1::uuid = fr.friend_id)
+       ORDER BY COALESCE(fr.updated_at, fr.created_at) DESC`,
       [myId]
     );
 
     res.json({
       count: result.rows.length,
       connections: result.rows.map((r) => ({
-        friendship_id: r.id,
-        user: { id: r.id, username: r.username, full_name: r.full_name, avatar_url: r.avatar_url },
+        friendship_id: r.friendship_id,
+        user: { id: r.user_id, username: r.username, full_name: r.full_name, avatar_url: r.avatar_url },
         status: r.status,
         created_at: r.created_at,
         updated_at: r.updated_at,

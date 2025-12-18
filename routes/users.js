@@ -52,10 +52,15 @@ router.get('/me', authenticateToken, async (req, res) => {
 // Get user by ID
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
+    const userId = req.params.id?.trim();
+    if (!userId || userId === 'null' || userId === 'undefined') {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
     const result = await pool.query(
       `SELECT id, username, full_name, avatar_url, email, role, created_at
-       FROM profiles WHERE id = $1`,
-      [req.params.id]
+       FROM profiles WHERE id = $1::uuid`,
+      [userId]
     );
 
     if (result.rows.length === 0) {

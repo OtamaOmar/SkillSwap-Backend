@@ -1,12 +1,12 @@
 import { pool } from "../db.js";
 import { addClient, removeClient, pushToUser } from "../utils/realtime.js";
 
-// Helper: create a notification (reuses your notifications table)
-const createNotification = async ({ user_id, from_user_id, type, message }) => {
+// Helper: create a notification aligned with notifications schema
+const createNotification = async ({ user_id, actor_id, notification_type, related_message_id = null }) => {
   await pool.query(
-    `INSERT INTO notifications (user_id, from_user_id, type, message)
-     VALUES ($1, $2, $3, $4)`,
-    [user_id, from_user_id ?? null, type, message ?? null]
+    `INSERT INTO notifications (user_id, actor_id, notification_type, related_message_id)
+     VALUES ($1::uuid, $2::uuid, $3, $4)`,
+    [user_id, actor_id, notification_type, related_message_id]
   );
 };
 
@@ -126,17 +126,16 @@ export const sendMessage = async (req, res) => {
     const msg = inserted.rows[0];
 
     // create notification in DB
-    const actorName = req.user.username || req.user.full_name || "Someone";
     await createNotification({
       user_id: toId,
-      from_user_id: fromId,
-      type: "message",
-      message: `${actorName} sent you a message`,
+      actor_id: fromId,
+      notification_type: "message",
+      related_message_id: msg.id,
     });
 
     // push real-time SSE event to receiver
     pushToUser(toId, "message", msg);
-    pushToUser(toId, "notification", { type: "message", from_user_id: fromId });
+    pushToUser(toId, "notification", { notification_type: "message", actor_id: fromId, message_id: msg.id });
 
     res.status(201).json(msg);
   } catch (error) {

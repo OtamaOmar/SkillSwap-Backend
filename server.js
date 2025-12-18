@@ -32,9 +32,13 @@ app.use(cors({
   credentials: true
 }));
 
+// Middleware: body parsing MUST come before route handlers
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
 app.use("/api/friendships", friendshipsRoutes);
 app.use("/api/friends", friendshipsRoutes);
-app.use(express.json());
 app.use("/api/chat", chatRoutes);
 
 const PORT = process.env.PORT || 4000;
