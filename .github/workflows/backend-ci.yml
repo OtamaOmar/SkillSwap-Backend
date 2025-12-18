@@ -1,0 +1,80 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'SkillSwap-Backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'SkillSwap-Backend/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: skillswap_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'SkillSwap-Backend/package-lock.json'
+
+    - name: Install dependencies
+      working-directory: ./SkillSwap-Backend
+      run: npm ci
+
+    - name: Lint
+      working-directory: ./SkillSwap-Backend
+      run: npm run lint --if-present
+
+    - name: Run tests
+      working-directory: ./SkillSwap-Backend
+      run: npm test --if-present
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: skillswap_test
+        DB_USER: test_user
+        DB_PASSWORD: test_password
+        NODE_ENV: test
+
+    - name: Check build
+      working-directory: ./SkillSwap-Backend
+      run: npm run build --if-present
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Deploy to production
+      run: |
+        echo "Deploying SkillSwap Backend to production"
+        # Add your deployment commands here
+        # Example: deploying to a cloud platform like Heroku, AWS, etc.
