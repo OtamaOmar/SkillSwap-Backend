@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "dev": "node server.js",
     "migrate": "node migrations.js",
     "migrate:and:start": "node migrations.js && node server.js"
   },
