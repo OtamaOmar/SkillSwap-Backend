@@ -17,20 +17,23 @@ export const registerUser = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const result = await pool.query(
-            "INSERT INTO profiles (username, email, full_name, role) VALUES ($1,$2,$3,'user') RETURNING id, username, email, full_name, role, created_at",
-            [username, email, full_name]
+            "INSERT INTO profiles (username, email, password, full_name, role) VALUES ($1, $2, $3, $4, 'user') RETURNING id, username, email, full_name, role, created_at",
+            [username, email, hashedPassword, full_name]
         );
 
         // Create a mock session object to match expected client format
         const user = result.rows[0];
         const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
 
+        // Exclude password from response
+        const { password: _, ...userWithoutPassword } = user;
+
         res.json({
             session: {
                 access_token: token,
                 refresh_token: token,
             },
-            user: user
+            user: userWithoutPassword
         });
 
     } catch (err) {
@@ -48,12 +51,21 @@ export const loginUser = async (req, res) => {
     try {
         const user = await pool.query("SELECT * FROM profiles WHERE email=$1", [email]);
 
-        if (user.rows.length === 0)
+        if (user.rows.length === 0) {
             return res.status(400).json({ message: "No such user" });
+        }
+
+        const isValid = await bcrypt.compare(password, user.rows[0].password);
+        if (!isValid) {
+            return res.status(400).json({ message: "Invalid password" });
+        }
 
         const token = jwt.sign({ id: user.rows[0].id }, process.env.JWT_SECRET);
 
-        res.json({ token, user: user.rows[0] });
+        // Exclude password from response
+        const { password: _, ...userWithoutPassword } = user.rows[0];
+
+        res.json({ token, user: userWithoutPassword });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -67,6 +79,114 @@ export const getAllUsers = async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         console.error("getAllUsers error:", err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/* GET profile */
+export const getProfile = async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT id, username, email, full_name, bio, location, country, avatar_url, cover_image_url, role, created_at
+             FROM profiles WHERE id = $1`,
+            [req.user.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/* UPDATE profile */
+export const updateProfile = async (req, res) => {
+    try {
+        const { full_name, bio, location, country } = req.body;
+        const result = await pool.query(
+            `UPDATE profiles 
+             SET full_name = COALESCE($1, full_name),
+                 bio = COALESCE($2, bio),
+                 location = COALESCE($3, location),
+                 country = COALESCE($4, country),
+                 updated_at = NOW()
+             WHERE id = $5
+             RETURNING id, username, email, full_name, bio, location, country, avatar_url, cover_image_url, role, created_at`,
+            [full_name, bio, location, country, req.user.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/* UPLOAD avatar */
+export const uploadAvatar = async (req, res) => {
+    try {
+        const path = `/uploads/${req.file.filename}`;
+        const result = await pool.query(
+            'UPDATE profiles SET avatar_url = $1, updated_at = NOW() WHERE id = $2 RETURNING avatar_url',
+            [path, req.user.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({ avatar: path });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/* UPLOAD cover */
+export const uploadCover = async (req, res) => {
+    try {
+        const path = `/uploads/${req.file.filename}`;
+        const result = await pool.query(
+            'UPDATE profiles SET cover_image_url = $1, updated_at = NOW() WHERE id = $2 RETURNING cover_image_url',
+            [path, req.user.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({ cover: path });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/* SEARCH users */
+export const searchUsers = async (req, res) => {
+    try {
+        const query = req.query.q || '';
+        const result = await pool.query(
+            `SELECT id, username, full_name, avatar_url, email, role, created_at
+             FROM profiles
+             WHERE username ILIKE $1 OR full_name ILIKE $1
+             ORDER BY username
+             LIMIT 50`,
+            [`%${query}%`]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+/* USER stats */
+export const userStats = async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                (SELECT COUNT(*) FROM posts WHERE user_id = $1) as posts,
+                (SELECT COUNT(*) FROM friendships WHERE status = 'accepted' AND (user_id = $1 OR friend_id = $1)) as friends`,
+            [req.user.id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };

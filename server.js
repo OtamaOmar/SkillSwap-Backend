@@ -9,10 +9,22 @@ import usersRoutes from "./routes/users.js";
 import postsRoutes from "./routes/posts.js";
 import skillsRoutes from "./routes/skills.js";
 import friendshipsRoutes from "./routes/friendships.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
+import chatRoutes from "./routes/chat.js";
+import commentsRoutes from "./routes/comments.js";
+import notificationsRoutes from "./routes/notifications.js";
 
 dotenv.config();
 
 const app = express();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // CORS configuration
 app.use(cors({
@@ -20,7 +32,14 @@ app.use(cors({
   credentials: true
 }));
 
+// Middleware: body parsing MUST come before route handlers
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.use("/api/friendships", friendshipsRoutes);
+app.use("/api/friends", friendshipsRoutes);
+app.use("/api/chat", chatRoutes);
 
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -151,6 +170,8 @@ app.use("/api/users", usersRoutes);
 app.use("/api/posts", postsRoutes);
 app.use("/api/skills", skillsRoutes);
 app.use("/api/friendships", friendshipsRoutes);
+app.use("/api/comments", commentsRoutes);
+app.use("/api/notifications", notificationsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

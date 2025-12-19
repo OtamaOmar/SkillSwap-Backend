@@ -23,24 +23,19 @@ async function runMigrations() {
   const client = await pool.connect();
   try {
     console.log('Starting database migrations...');
-    
-    // Read and execute migration files in order
-    const migrationFiles = ['001_init.sql', '002_add_password_to_profiles.sql'];
-    
-    for (const file of migrationFiles) {
-      const migrationPath = path.join(__dirname, 'migrations', file);
-      try {
-        const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
-        await client.query(migrationSQL);
-        console.log(`✓ Executed ${file}`);
-      } catch (fileError) {
-        if (!fileError.code?.startsWith('ENOENT')) {
-          throw fileError;
-        }
-        console.log(`- Skipped ${file} (not found)`);
-      }
+
+    const migrationsDir = path.join(__dirname, 'migrations');
+    const allFiles = fs.readdirSync(migrationsDir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort(); // lexical sort keeps 001_.. < 002_.. etc
+
+    for (const file of allFiles) {
+      const migrationPath = path.join(migrationsDir, file);
+      const sql = fs.readFileSync(migrationPath, 'utf8');
+      await client.query(sql);
+      console.log(`✓ Executed ${file}`);
     }
-    
+
     console.log('✓ Database migrations completed successfully');
   } catch (error) {
     console.error('✗ Migration failed:', error.message);
