@@ -1,22 +1,35 @@
 # SkillSwap Backend
 
-Node.js + Express backend with JWT authentication and a direct PostgreSQL database connection (no Supabase SDK).
+Node.js + Express API for SkillSwap with JWT auth and PostgreSQL. Handles profiles, posts, comments, skills, friendships, chat, and notifications. Ships with SQL migrations and Docker support. Live at http://skillswap-app.duckdns.org/ (backend served from a container running on our Azure server).
 
-## Docker & Railway quick start
+## Stack
+- Node.js 18+ (ESM) + Express
+- PostgreSQL (`pg` pool)
+- JWT auth (`jsonwebtoken`, `bcrypt`)
+- File uploads via `multer`
 
-- **Local Docker (backend + PostgreSQL):**
-  1) Copy `.env` (see sample below) then run `docker compose up --build`. This starts the API on port 4000 and Postgres on 5432.
-  2) Healthcheck waits for Postgres before the API is marked healthy.
-- **Full-stack Docker:** from the `SkillSwap-Frontend` folder run `docker compose up --build` to bring up frontend (port 8000), backend (port 4000), and PostgreSQL (port 5432).
-- **Railway CI/CD:** pushes to `main` trigger `.github/workflows/cd.yml` which builds/pushes the image and deploys to Railway using the secrets listed below.
-
-### Backend env sample (.env)
-
+## Quick start (local dev)
+1) Install dependencies
+```bash
+npm install
 ```
-NODE_ENV=production
+2) Create `.env` (see sample). Provide either `DATABASE_URL` or discrete `DB_*` values.
+3) Run migrations
+```bash
+npm run migrate
+```
+4) Start API
+```bash
+npm start
+# http://localhost:4000
+```
+
+### Env sample (`.env`)
+```
+NODE_ENV=development
 PORT=4000
-FRONTEND_URL=http://localhost:8000
-DATABASE_URL=postgres://mora:Omar.2005@localhost:5432/skillswap_db
+FRONTEND_URL=http://localhost:5173
+DATABASE_URL=postgres://user:password@localhost:5432/skillswap_db
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=mora
@@ -25,296 +38,45 @@ DB_NAME=skillswap_db
 JWT_SECRET=change-me
 ```
 
-> For Railway, set the same variables via project Variables or let the GitHub Action set them using secrets.
+### Database migrations
+- SQL files live in `migrations/` and run in lexical order (001_*.sql, 002_*.sql...).
+- Use `npm run migrate` to apply all scripts once; it respects `DATABASE_PUBLIC_URL` (Railway) or `DATABASE_URL`.
+- Ensure the UUID extension exists: `CREATE EXTENSION IF NOT EXISTS "uuid-ossp";` (already included in the first migration).
 
-## Features
+### API surface (high level)
+- Auth: `/api/auth/signup`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/refresh`
+- Users: `/api/users`, `/api/users/me`, `/api/users/:id`, profile updates, upload avatar/cover
+- Posts: list/create/delete, comments, likes
+- Skills: add/update/delete, fetch by user
+- Friendships: requests, accept/reject, unfriend (also mounted at `/api/friends`)
+- Chat and notifications routes are mounted under `/api/chat` and `/api/notifications`.
 
-- **JWT Authentication**: User signup, login, logout, and session management
-- **PostgreSQL Database**: Direct database access for complex queries
-- **RESTful API**: Complete CRUD operations for all resources
-- **JWT Token Management**: Secure authentication with access and refresh tokens
-- **CORS Enabled**: Configured for frontend communication
-
-## Tech Stack
-
-- Node.js + Express
-- PostgreSQL (via `pg` Pool)
-- Axios (HTTP client)
-- dotenv (Environment variables)
-
-## Setup
-
-### 1. Install Dependencies
-
+### Docker
+- Full stack compose lives at repo root. From `/home/mora/github/SkillSwap` run:
 ```bash
-cd backend
-npm install
+docker compose up --build
+```
+- Backend listens on `4000`, Postgres on `5432`. Override env via compose or `.env`.
+- Backend `Dockerfile` uses `PORT` and reads the same `.env` keys.
+
+### CI/CD
+- CI: `.github/workflows/backend-ci.yml` installs, lints (if configured), and runs build/test steps.
+- CD: `.github/workflows/backend-cd.yml` builds and deploys to Railway; set secrets for database URL and JWT secret.
+
+### Project layout
+```
+SkillSwap-Backend/
+├─ server.js            # Express app + route mounting
+├─ db.js                # pg Pool using DATABASE_URL or DB_* vars
+├─ middleware.js        # JWT auth middleware
+├─ migrations.js        # Runner for SQL migrations in migrations/
+├─ routes/              # API route modules (users, posts, skills, friendships, chat, notifications)
+├─ controllers/         # Route handlers
+├─ utils/               # Realtime helpers, uploads
+└─ migrations/          # Ordered SQL migration files
 ```
 
-### 2. Configure Environment Variables
-
-Create a `.env` file in the backend directory:
-
-```env
-# Server Configuration
-PORT=4000
-NODE_ENV=development
-FRONTEND_URL=http://localhost:5173
-
-# Database Configuration (PostgreSQL)
-DATABASE_URL=postgresql://user:password@host:port/database
-
-# JWT Secret
-JWT_SECRET=your_jwt_secret_key_here
-```
-
-### 3. PostgreSQL Connection
-
-Provision a local or hosted PostgreSQL instance and set `DATABASE_URL` (or discrete `DB_*` vars). No Supabase SDK is used.
-
-### 4. Database Schema
-
-Run the SQL script in your PostgreSQL instance (psql, PgAdmin, or migration scripts):
-
-```sql
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Profiles table
-CREATE TABLE IF NOT EXISTS profiles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  username TEXT UNIQUE NOT NULL,
-  full_name TEXT,
-  email TEXT UNIQUE NOT NULL,
-  avatar_url TEXT,
-  role TEXT DEFAULT 'user',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Skills table
-CREATE TABLE IF NOT EXISTS skills (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  skill_name VARCHAR(255) NOT NULL,
-  skill_type VARCHAR(50) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Posts table
-CREATE TABLE IF NOT EXISTS posts (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  image_url VARCHAR(500),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Comments table
-CREATE TABLE IF NOT EXISTS comments (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Likes table
-CREATE TABLE IF NOT EXISTS likes (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, post_id)
-);
-
--- Shares table
-CREATE TABLE IF NOT EXISTS shares (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Friendships table
-CREATE TABLE IF NOT EXISTS friendships (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  friend_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  status VARCHAR(50) DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create indexes
-CREATE INDEX idx_posts_user_id ON posts(user_id);
-CREATE INDEX idx_skills_user_id ON skills(user_id);
-CREATE INDEX idx_comments_post_id ON comments(post_id);
-CREATE INDEX idx_likes_post_id ON likes(post_id);
-CREATE INDEX idx_friendships_user_id ON friendships(user_id);
-```
-
-### 5. Start the Server
-
-```bash
-npm start
-```
-
-The server will run on `http://localhost:4000`
-
-## API Endpoints
-
-### Authentication
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/signup` | Register new user |
-| POST | `/api/auth/login` | Login user |
-| POST | `/api/auth/logout` | Logout user |
-| POST | `/api/auth/refresh` | Refresh access token |
-
-### Users
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/users` | Get all users | No |
-| GET | `/api/users/me` | Get current user | Yes |
-| GET | `/api/users/:id` | Get user by ID | Yes |
-| PUT | `/api/users/me` | Update profile | Yes |
-
-### Posts
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/posts` | Get all posts | Yes |
-| GET | `/api/posts/user/:userId` | Get user posts | No |
-| POST | `/api/posts` | Create post | Yes |
-| GET | `/api/posts/:id/comments` | Get post comments | No |
-| POST | `/api/posts/:id/comment` | Add comment | Yes |
-| POST | `/api/posts/:id/like` | Like post | Yes |
-| DELETE | `/api/posts/:id/like` | Unlike post | Yes |
-
-### Skills
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/skills/me` | Get my skills | Yes |
-| GET | `/api/skills/user/:userId` | Get user skills | No |
-| POST | `/api/skills` | Add skill | Yes |
-| PUT | `/api/skills/:id` | Update skill | Yes |
-| DELETE | `/api/skills/:id` | Delete skill | Yes |
-
-### Friendships
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/friendships` | Get all friendships | Yes |
-| POST | `/api/friendships/request` | Send friend request | Yes |
-| PUT | `/api/friendships/:id/accept` | Accept request | Yes |
-| DELETE | `/api/friendships/:id/reject` | Reject request | Yes |
-| DELETE | `/api/friendships/:friendId` | Unfriend | Yes |
-
-## Request/Response Examples
-
-### Signup
-
-```bash
-curl -X POST http://localhost:4000/api/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "password123",
-    "username": "johndoe",
-    "full_name": "John Doe"
-  }'
-```
-
-### Login
-
-```bash
-curl -X POST http://localhost:4000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "password123"
-  }'
-```
-
-### Create Post
-
-```bash
-curl -X POST http://localhost:4000/api/posts \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -d '{
-    "content": "My first post!",
-    "image_url": "https://example.com/image.jpg"
-  }'
-```
-
-## Project Structure
-
-```
-backend/
-├── routes/
-│   ├── users.js          # User endpoints
-│   ├── posts.js          # Post endpoints
-│   ├── skills.js         # Skills endpoints
-│   ├── friendships.js    # Friendship endpoints
-│   └── userRoutes.js     # Legacy routes
-├── controllers/
-│   └── userControllers.js
-├── middleware.js         # Auth middleware
-├── db.js                # Database connection
-├── server.js            # Main server file
-├── package.json
-└── .env                 # Environment variables
-```
-
-## Troubleshooting
-
-### Port Already in Use
-
-If you get `EADDRINUSE` error:
-
-```bash
-# Find process using port 4000
-lsof -ti:4000
-
-# Kill the process
-lsof -ti:4000 | xargs kill -9
-```
-
-### Database Connection Issues
-
-1. Verify your `DATABASE_URL` is correct
-2. Ensure PostgreSQL is reachable and credentials are correct
-3. Verify your `pg` Pool initialization in `db.js`
-
-### Authentication Issues
-
-1. Check if tokens are properly stored in frontend
-3. Ensure Authorization header format: `Bearer <token>`
-
-## Development
-
-### Run with nodemon (auto-reload)
-
-```bash
-npm install -g nodemon
-nodemon server.js
-```
-
-### Test API with curl
-
-```bash
-# Health check
-curl http://localhost:4000/
-
-# Get all users
-curl http://localhost:4000/api/users
-```
-
-## License
-
-MIT
+### Troubleshooting
+- `EADDRINUSE`: free the port `lsof -ti:4000 | xargs kill -9`.
+- DB connection: verify `DATABASE_URL`/`DB_*`, ensure PostgreSQL is reachable and `uuid-ossp` is enabled.
+- Auth failures: check `Authorization: Bearer <token>` header and `JWT_SECRET` consistency across services.
