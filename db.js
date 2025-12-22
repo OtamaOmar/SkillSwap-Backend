@@ -11,11 +11,11 @@ const connectionString = process.env.DATABASE_URL;
 export const pool = connectionString
   ? new Pool({ connectionString })
   : new Pool({
-      user: process.env.DB_USER || 'mora',
-      password: process.env.DB_PASSWORD || 'Omar.team1234',
-      host: process.env.DB_HOST || '51.107.11.67',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'admin',
+      host: process.env.DB_HOST || 'ub2022.polandcentral.cloudapp.azure.com',
       port: Number(process.env.DB_PORT) || 5432,
-      database: process.env.DB_NAME || 'skillswap-db',
+      database: process.env.DB_NAME || 'skillswap',
     });
 
 pool.on('error', (err) => {
