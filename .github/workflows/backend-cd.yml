@@ -11,59 +11,28 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    
     steps:
     - uses: actions/checkout@v4
       with:
         ref: ${{ github.event.workflow_run.head_commit }}
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Log in to Azure
+      uses: azure/login@v1
       with:
-        node-version: '20'
-        cache: 'npm'
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Install dependencies
-      run: npm install
+    - name: Log in to Azure Container Registry
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
 
-    - name: Run tests before deployment
-      run: npm test --if-present
-      env:
-        DB_HOST: localhost
-        DB_PORT: 5432
-        DB_NAME: skillswap_test
-        DB_USER: test_user
-        DB_PASSWORD: test_password
-        NODE_ENV: test
-
-    - name: Check build
-      run: npm run build --if-present
-
-    - name: Build Docker image
-      run: |
-        docker build -t skillswap-backend:latest .
-        docker tag skillswap-backend:latest skillswap-backend:${{ github.sha }}
-      if: false  # Uncomment when Docker registry is configured
-
-    - name: Deploy to hosting platform
-      run: |
-        echo "Deploying Backend to production..."
-        # Configure your deployment platform:
-        # - Heroku: heroku deploy
-        # - AWS EC2/Elastic Beanstalk: aws deploy push
-        # - Azure App Service: az webapp deployment
-        # - DigitalOcean App Platform: doctl apps create-deployment
-        # - Railway/Render: platform-specific deployment
-      env:
-        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
-
-    - name: Run smoke tests
-      run: |
-        echo "Running smoke tests on deployed service..."
-        # Add health check curl or test calls here
-      env:
-        API_URL: ${{ secrets.PRODUCTION_URL }}
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME_BACKEND }}
+        images: ${{ secrets.ACR_LOGIN_SERVER }}/skillswap-backend:${{ github.sha }}
 
     - name: Notify deployment status
       if: always()
