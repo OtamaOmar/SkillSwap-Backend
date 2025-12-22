@@ -12,10 +12,10 @@ export const pool = connectionString
   ? new Pool({ connectionString })
   : new Pool({
       user: process.env.DB_USER || 'mora',
-      password: process.env.DB_PASSWORD || 'Omar.2005',
-      host: process.env.DB_HOST || 'localhost',
+      password: process.env.DB_PASSWORD || 'Omar.team1234',
+      host: process.env.DB_HOST || '51.107.11.67',
       port: Number(process.env.DB_PORT) || 5432,
-      database: process.env.DB_NAME || 'skillswap_db',
+      database: process.env.DB_NAME || 'skillswap-db',
     });
 
 pool.on('error', (err) => {
