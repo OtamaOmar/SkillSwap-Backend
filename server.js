@@ -28,7 +28,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: process.env.FRONTEND_URL || 'http://skillswap-app.duckdns.org',
   credentials: true
 }));
 
@@ -181,6 +181,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`SkillSwap backend running on http://localhost:${PORT}`);
+app.listen(4000, "0.0.0.0", () => {
+  console.log("Backend running on 4000");
 });

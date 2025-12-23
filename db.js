@@ -12,7 +12,7 @@ export const pool = connectionString
   ? new Pool({ connectionString })
   : new Pool({
       user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'admin',
+      password: process.env.DB_PASSWORD || 'postgres',
       host: process.env.DB_HOST || 'ub2022.polandcentral.cloudapp.azure.com',
       port: Number(process.env.DB_PORT) || 5432,
       database: process.env.DB_NAME || 'skillswap',

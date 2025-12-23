@@ -1,6 +1,7 @@
 import { pool } from './db.js';
 import jwt from 'jsonwebtoken';
 
+// Use JWT_SECRET from environment, fallback to .env or safe default
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 export const authenticateToken = async (req, res, next) => {

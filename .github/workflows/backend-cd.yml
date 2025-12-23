@@ -33,6 +33,8 @@ jobs:
       with:
         app-name: ${{ secrets.AZURE_WEBAPP_NAME_BACKEND }}
         images: ${{ secrets.ACR_LOGIN_SERVER }}/skillswap-backend:${{ github.sha }}
+      env:
+        BASE_URL_DEPLOY: http://skillswap-app.duckdns.org/api
 
     - name: Notify deployment status
       if: always()
