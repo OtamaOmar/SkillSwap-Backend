@@ -1,0 +1,32 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - "**"
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint (if present)
+        run: npm run lint --if-present
+
+      - name: Build
+        run: npm run build
+
+      - name: Test (if present)
+        run: npm test --if-present
